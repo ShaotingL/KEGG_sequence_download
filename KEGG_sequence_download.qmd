@@ -1,0 +1,107 @@
+---
+title: "KEGG_sequence_download"
+author: "Shaoting_Lin"
+format: html
+editor: visual
+---
+
+# Import Required Libraries
+
+```{r}
+#| echo: false
+# Load the necessary libraries:
+# KEGGREST for accessing KEGG databases,
+# Biostrings for handling and writing amino acid sequences in FASTA format.
+library(KEGGREST)
+library(Biostrings)
+```
+
+# Choose Target Organism
+Please choose the target organism from the following KEGG organism codes:
+
+## [KEGG Organisms](https://www.genome.jp/kegg/tables/br08606.html)
+
+**Dendrobium catenatum：** 代碼 "[dct](https://www.genome.jp/kegg-bin/show_organism?org=dct)"
+
+**Phalaenopsis equestris：** 代碼 "[peq](https://www.genome.jp/kegg-bin/show_organism?org=peq)"
+
+**水稻 (Oryza sativa)：** 代碼 "osa"
+
+**玉米 (Zea mays)：** 代碼 "zma"
+
+**番茄 (Solanum lycopersicum)：** 代碼 "sly"
+
+**大豆 (Glycine max)：** 代碼 "gmx"
+
+```{r}
+# Uncomment the following line to view all organism information from KEGG:
+# keggList("organism")
+```
+
+```{r}
+# Set the target organism code.
+# Change this value as needed. For example, use "osa" for rice.
+org_code <- "dct"
+```
+
+# Retrieve KO IDs (Carotenoid Biosynthesis Pathway)
+
+```{r}
+# Retrieve KO IDs associated with the Carotenoid Biosynthesis pathway (map00906)
+cat("Retrieving KO IDs for Carotenoid Biosynthesis (map00906)...\n")
+# Use "path:map00906" as the source, which returns a named vector where the values are KO IDs.
+carotenoid_kos <- keggLink("ko", "path:map00906")
+
+# Remove the "ko:" prefix from each KO ID and remove the names attribute.
+ko_ids <- unname(sub("ko:", "", carotenoid_kos))
+print(ko_ids)
+```
+
+```{r}
+# 1️⃣ 定義目標 KO IDs
+ko_ids <- c(
+  # "K01641", "K00021", "K00869", "K00818", "K01597",   # MVA Pathway
+  # "K01662", "K00099", "K00919", "K00920", "K00921", "K02378", "K02379", "K01823",  # MEP / DOXP Pathway
+  "K13789", "K00807", "K02290", "K00425", "K06445", "K09856", "K09857", "K09858", "K09859",  # Carotenoid Biosynthesis  
+  "K21549", "K14081"  # Carotenoid Cleavage
+)
+```
+
+# Download KO-to-Gene Mapping and Save Protein Sequences
+
+```{r}
+# Download the KO to gene mapping for the target organism.
+cat("Downloading KO to gene mapping for", org_code, "...\n")
+all_mapping <- keggLink(org_code, "ko")
+
+# Filter the mapping to retain only genes corresponding to our target KO IDs.
+target_mapping <- all_mapping[which(sub("ko:", "", names(all_mapping)) %in% ko_ids)]
+genes <- unique(target_mapping)
+cat("Found", length(genes), "gene mappings for", org_code, "\n")
+
+# Create a folder to store the downloaded protein sequences.
+# The folder name is based on the organism code in uppercase.
+folder_name <- paste0(toupper(org_code), "_protein_sequences")
+dir.create(folder_name, showWarnings = FALSE)
+
+# For each gene, download its protein sequence and save it as a FASTA file.
+for (gene in genes) {
+  cat("Downloading protein sequence for", gene, "...\n")
+  
+  # Retrieve the amino acid sequence using keggGet with the "aaseq" option.
+  seq_result <- keggGet(gene, "aaseq")
+  
+  if (length(seq_result) > 0) {
+    # Construct the FASTA file name by removing the organism code prefix.
+    file_name <- paste0(folder_name, "/", gsub(paste0(org_code, ":"), "", gene), ".fasta")
+    # Write the amino acid sequence to a FASTA file using Biostrings.
+    writeXStringSet(seq_result, filepath = file_name)
+    cat(gene, "saved as", file_name, "\n")
+  } else {
+    cat("No protein sequence available for", gene, "- skipping\n")
+  }
+}
+
+cat("✅ All sequences have been downloaded and saved in the folder '", folder_name, "'\n")
+
+```
